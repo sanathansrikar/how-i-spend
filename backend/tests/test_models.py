@@ -1,4 +1,3 @@
-from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -6,25 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Category, Expense, User
-
-
-async def make_user(session: AsyncSession, email: str = "a@example.com") -> User:
-    user = User(email=email, full_name="Test User", currency="USD")
-    session.add(user)
-    await (
-        session.flush()
-    )  # flush sends the INSERT now so DB defaults (id, timestamps) are populated
-    return user
-
-
-def make_expense(user: User, **overrides: object) -> Expense:
-    fields: dict[str, object] = {
-        "user_id": user.id,
-        "amount": Decimal("12.50"),
-        "currency": "USD",
-        "spent_on": date(2026, 11, 1),
-    }
-    return Expense(**{**fields, **overrides})
+from tests.factories import make_expense, make_user
 
 
 async def test_database_fills_id_and_timestamps(session: AsyncSession) -> None:
