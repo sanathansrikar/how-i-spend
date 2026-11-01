@@ -1,0 +1,38 @@
+[project]
+name = "how-i-spend-api"
+version = "0.1.0"
+description = "API for the how-i-spend expense tracker"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.18",
+    "asyncpg>=0.31",
+    "fastapi>=0.140",
+    "pydantic-settings>=2.15",
+    "sqlalchemy[asyncio]>=2.1",
+    "uvicorn[standard]>=0.54",
+]
+
+[dependency-groups]
+dev = [
+    "httpx",
+    "mypy",
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "ASYNC", "RUF"]
+
+[tool.mypy]
+strict = true
+files = ["app", "tests"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
