@@ -23,7 +23,7 @@ cp .env.example .env
 uv sync
 uv run uvicorn app.main:app --reload         # API on :8000 (docs at /docs)
 
-cd frontend
+cd ../frontend
 npm install
 npm run dev                                  # App on :5173, proxies /api to :8000
 ```
