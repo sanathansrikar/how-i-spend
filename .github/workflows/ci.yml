@@ -12,6 +12,22 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    # Service container: a throwaway real Postgres, matching production, instead of mocks.
+    # Credentials match the defaults in app/core/config.py, so no DATABASE_URL override is needed.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: howispend
+          POSTGRES_PASSWORD: howispend
+          POSTGRES_DB: howispend
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U howispend"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     defaults:
       run:
         working-directory: backend
@@ -24,6 +40,9 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
+      - run: uv run alembic upgrade head
+      # Drift check: fails the build if models changed without a matching migration.
+      - run: uv run alembic check
       - run: uv run pytest
 
   frontend:

@@ -21,6 +21,7 @@ docker compose up -d db                      # Postgres on :5432
 cd backend
 cp .env.example .env
 uv sync
+uv run alembic upgrade head              # create/upgrade tables
 uv run uvicorn app.main:app --reload         # API on :8000 (docs at /docs)
 
 cd ../frontend
@@ -29,4 +30,6 @@ npm run dev                                  # App on :5173, proxies /api to :80
 ```
 
 Checks: backend `uv run ruff check . && uv run mypy && uv run pytest`;
+backend tests need the Postgres container running;
+after changing a model: `uv run alembic revision --autogenerate -m "<what changed>"`;
 frontend `npm run lint && npm run typecheck && npm test`.
