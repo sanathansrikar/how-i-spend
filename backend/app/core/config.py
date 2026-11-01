@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     app_name: str = "how-i-spend API"
     environment: str = "local"
     cors_origins: list[str] = ["http://localhost:5173"]
+    # 12-factor config: connection details come from the environment, never hardcoded.
+    database_url: str = "postgresql+asyncpg://howispend:howispend@localhost:5432/howispend"
 
 
 @lru_cache
