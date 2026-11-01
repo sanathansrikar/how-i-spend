@@ -9,7 +9,7 @@ from app.models import Category, Expense, User
 
 
 async def make_user(session: AsyncSession, email: str = "a@example.com") -> User:
-    user = User(email=email)
+    user = User(email=email, full_name="Test User", currency="USD")
     session.add(user)
     await (
         session.flush()
@@ -54,7 +54,7 @@ async def test_non_positive_amount_is_rejected(session: AsyncSession) -> None:
 
 async def test_email_must_be_unique(session: AsyncSession) -> None:
     await make_user(session, "dup@example.com")
-    session.add(User(email="dup@example.com"))
+    session.add(User(email="dup@example.com", full_name="Dup", currency="USD"))
 
     with pytest.raises(IntegrityError, match="uq_users_email"):
         await session.flush()
@@ -101,3 +101,52 @@ async def test_deleting_user_cascades_to_their_data(session: AsyncSession) -> No
     session.expunge_all()  # drop cached objects so the next get() really queries the DB
 
     assert await session.get(Expense, expense_id) is None
+
+
+async def test_income_and_budget_are_optional(session: AsyncSession) -> None:
+    user = await make_user(session)
+
+    assert user.monthly_income is None
+    assert user.monthly_budget is None
+
+
+@pytest.mark.parametrize("field", ["monthly_income", "monthly_budget"])
+async def test_negative_income_or_budget_is_rejected(session: AsyncSession, field: str) -> None:
+    session.add(
+        User(
+            email="neg@example.com",
+            full_name="Neg",
+            currency="USD",
+            **{field: Decimal("-1")},
+        )
+    )
+
+    with pytest.raises(IntegrityError, match="non_negative"):
+        await session.flush()
+
+
+@pytest.mark.parametrize("phone", ["9876543210", "+0123456789", "+12", "+91 98765 43210"])
+async def test_phone_must_be_e164(session: AsyncSession, phone: str) -> None:
+    session.add(User(email="p@example.com", full_name="P", currency="USD", phone=phone))
+
+    with pytest.raises(IntegrityError, match="phone_e164"):
+        await session.flush()
+
+
+async def test_phone_unique_but_many_users_may_omit_it(session: AsyncSession) -> None:
+    # Two users with no phone is fine: NULLs never collide under a UNIQUE constraint.
+    await make_user(session, "n1@example.com")
+    await make_user(session, "n2@example.com")
+    session.add(User(email="p1@example.com", full_name="A", currency="USD", phone="+919876543210"))
+    await session.flush()
+
+    session.add(User(email="p2@example.com", full_name="B", currency="USD", phone="+919876543210"))
+    with pytest.raises(IntegrityError, match="uq_users_phone"):
+        await session.flush()
+
+
+async def test_currency_must_be_three_uppercase_letters(session: AsyncSession) -> None:
+    session.add(User(email="c@example.com", full_name="C", currency="usd"))
+
+    with pytest.raises(IntegrityError, match="currency_iso"):
+        await session.flush()
