@@ -9,6 +9,18 @@ from sqlalchemy.orm import selectinload
 from app.models import Category, Expense
 
 
+async def get_expense(
+    session: AsyncSession, user_id: uuid.UUID, expense_id: uuid.UUID
+) -> Expense | None:
+    # Filter by owner in the query itself: someone else's expense is indistinguishable from a
+    # missing one, so the API never confirms that another user's ID exists.
+    return await session.scalar(
+        select(Expense)
+        .where(Expense.id == expense_id, Expense.user_id == user_id)
+        .options(selectinload(Expense.category))
+    )
+
+
 async def list_expenses(
     session: AsyncSession,
     user_id: uuid.UUID,

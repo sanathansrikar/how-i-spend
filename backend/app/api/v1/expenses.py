@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 from typing import Annotated
 
@@ -54,3 +55,16 @@ async def list_expenses(
         offset=offset,
     )
     return [ExpenseRead.model_validate(row) for row in rows]
+
+
+@router.get("/{expense_id}", response_model=ExpenseRead)
+async def get_expense(
+    expense_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> ExpenseRead:
+    """One of the current user's expenses; 404 if it does not exist or is not theirs."""
+    expense = await expense_service.get_expense(session, user.id, expense_id)
+    if expense is None:
+        raise HTTPException(status_code=404, detail="Expense not found.")
+    return ExpenseRead.model_validate(expense)
