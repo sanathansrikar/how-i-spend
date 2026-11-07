@@ -4,9 +4,10 @@ from decimal import Decimal
 
 from sqlalchemy import CheckConstraint, ForeignKey, Index, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.category import Category
 
 
 class Expense(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -25,6 +26,9 @@ class Expense(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     category_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("categories.id", ondelete="SET NULL"), index=True
     )
+    # relationship(): ORM-level navigation (expense.category); adds no column, so no migration.
+    # Always load it explicitly (selectinload) in async code: lazy loading would raise.
+    category: Mapped[Category | None] = relationship()
     # One-to-many: one parse attempt can create many expenses, so the FK lives on the "many" side.
     # SET NULL: deleting an attempt must not delete the expense it created.
     parse_attempt_id: Mapped[uuid.UUID | None] = mapped_column(
