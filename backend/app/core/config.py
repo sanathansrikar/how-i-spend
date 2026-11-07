@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173"]
     # 12-factor config: connection details come from the environment, never hardcoded.
     database_url: str = "postgresql+asyncpg://howispend:howispend@localhost:5432/howispend"
+    # Stand-in identity until real auth exists: every request acts as this (seeded) user.
+    demo_user_email: str = "demo@example.com"
 
 
 @lru_cache
