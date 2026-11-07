@@ -28,3 +28,6 @@ coverage/
 
 # Docker
 pgdata/
+
+# Local database dumps (may contain personal data)
+backups/
