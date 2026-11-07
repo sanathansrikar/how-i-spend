@@ -34,7 +34,10 @@ async def _create_schema() -> None:
 
     engine = create_async_engine(test_url, poolclass=NullPool)
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        # Reset the whole schema (not drop_all): robust to leftovers from older schema shapes,
+        # which would otherwise block drops through foreign keys that no longer exist in the models.
+        await conn.execute(text("DROP SCHEMA public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
         await conn.run_sync(Base.metadata.create_all)
     await engine.dispose()
 
