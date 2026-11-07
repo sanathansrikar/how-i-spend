@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncIterator, Iterator
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -9,6 +10,8 @@ from sqlalchemy.pool import NullPool
 
 from app.core.config import get_settings
 from app.db.base import Base
+from app.db.session import get_session
+from app.main import app
 from app.models import *  # noqa: F403  # Registers models on Base.metadata for create_all.
 
 
@@ -62,3 +65,16 @@ async def session() -> AsyncIterator[AsyncSession]:
             yield s
         await outer.rollback()
     await engine.dispose()
+
+
+@pytest.fixture
+async def client(session: AsyncSession) -> AsyncIterator[AsyncClient]:
+    # Dependency override: the app uses the test's rolled-back session, so API tests see test
+    # data and leave nothing behind.
+    async def _session_override() -> AsyncSession:
+        return session
+
+    app.dependency_overrides[get_session] = _session_override
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        yield c
+    app.dependency_overrides.clear()
