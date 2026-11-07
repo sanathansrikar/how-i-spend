@@ -25,6 +25,11 @@ class Expense(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     category_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("categories.id", ondelete="SET NULL"), index=True
     )
+    # One-to-many: one parse attempt can create many expenses, so the FK lives on the "many" side.
+    # SET NULL: deleting an attempt must not delete the expense it created.
+    parse_attempt_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("expense_parse_attempts.id", ondelete="SET NULL"), index=True
+    )
     # NUMERIC, never float: binary floats can't represent 0.10 exactly, corrupting money maths.
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     # ISO 4217 code per row: no assumed currency, so multi-currency needs no migration.

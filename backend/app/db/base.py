@@ -29,10 +29,14 @@ class UUIDPrimaryKeyMixin:
     )
 
 
-class TimestampMixin:
-    # Audit columns: when a row was created/changed, set by the DB clock (one source of truth).
+class CreatedAtMixin:
+    # Append-only tables (event/audit logs) need only a creation time; rows are never updated.
     # timestamptz stores an absolute instant in UTC; convert to local time only at the UI edge.
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class TimestampMixin(CreatedAtMixin):
+    # Audit columns: when a row was created/changed, set by the DB clock (one source of truth).
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
