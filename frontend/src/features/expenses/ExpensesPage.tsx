@@ -22,14 +22,19 @@ import {
 } from '@/components/ui/table'
 import { formatDate, formatMoney } from '@/lib/format'
 import ExpenseForm from './ExpenseForm'
-import { useDeleteExpense, useExpenses, type Expense } from './queries'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { PAGE_SIZES, useDeleteExpense, useExpenses, type Expense } from './queries'
 
 function describe(expense: Expense): string {
   return expense.merchant ?? expense.note ?? '—'
 }
 
 export default function ExpensesPage() {
-  const expenses = useExpenses()
+  const [pageSize, setPageSize] = useState<number>(PAGE_SIZES[0])
+  // Zero-based; the screen shows page + 1.
+  const [page, setPage] = useState(0)
+  const expenses = useExpenses({ pageSize, page })
+  const rows = expenses.data?.rows ?? []
   const deleteExpense = useDeleteExpense()
   // Which expense a dialog is about; null means that dialog is closed.
   const [editing, setEditing] = useState<Expense | null>(null)
@@ -67,10 +72,12 @@ export default function ExpensesPage() {
               Could not load expenses. Is the API running?
             </p>
           )}
-          {expenses.isSuccess && expenses.data.length === 0 && (
-            <p className="text-muted-foreground">No expenses yet.</p>
+          {expenses.isSuccess && rows.length === 0 && (
+            <p className="text-muted-foreground">
+              {page === 0 ? 'No expenses yet.' : 'No expenses on this page.'}
+            </p>
           )}
-          {expenses.isSuccess && expenses.data.length > 0 && (
+          {expenses.isSuccess && rows.length > 0 && (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -84,7 +91,7 @@ export default function ExpensesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.data.map((expense) => (
+                {rows.map((expense) => (
                   <TableRow key={expense.id}>
                     <TableCell>{formatDate(expense.spent_on)}</TableCell>
                     <TableCell>{describe(expense)}</TableCell>
@@ -114,6 +121,50 @@ export default function ExpensesPage() {
                 ))}
               </TableBody>
             </Table>
+          )}
+          {expenses.isSuccess && (page > 0 || rows.length > 0) && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+              <label className="flex items-center gap-2">
+                Rows per page
+                <NativeSelect
+                  size="sm"
+                  value={pageSize}
+                  onChange={(event) => {
+                    setPageSize(Number(event.target.value))
+                    setPage(0) // a new page size changes what "page 3" means, so start over
+                  }}
+                >
+                  {PAGE_SIZES.map((size) => (
+                    <NativeSelectOption key={size} value={size}>
+                      {size}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">
+                  {rows.length > 0
+                    ? `${page * pageSize + 1}–${page * pageSize + rows.length}`
+                    : `Page ${page + 1}`}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 0}
+                  onClick={() => setPage(page - 1)}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!expenses.data?.hasNext}
+                  onClick={() => setPage(page + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

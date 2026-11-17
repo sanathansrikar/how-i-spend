@@ -1,4 +1,10 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
 /** Mirrors the backend's ExpenseRead: category is a name, amount a decimal string. */
@@ -29,10 +35,27 @@ function refreshExpenseData(queryClient: QueryClient) {
   ])
 }
 
-export function useExpenses() {
+/** Rows-per-page choices offered in the list. */
+export const PAGE_SIZES = [20, 50] as const
+
+export type ExpenseListParams = {
+  /** Rows per page. */
+  pageSize: number
+  /** Zero-based page number. */
+  page: number
+}
+
+/** One page of expenses, plus whether another page follows it. */
+export function useExpenses(params: ExpenseListParams) {
+  const { pageSize, page } = params
   return useQuery({
-    queryKey: ['expenses'],
-    queryFn: () => api<Expense[]>('/expenses'),
+    queryKey: ['expenses', params],
+    // Ask for one row more than the page holds: if it comes back, a next page exists. The API
+    // gives no total count, so this avoids a second request just to enable "Next".
+    queryFn: () => api<Expense[]>(`/expenses?limit=${pageSize + 1}&offset=${page * pageSize}`),
+    // Keep showing the old page while the next one loads, instead of flashing "Loading…".
+    placeholderData: keepPreviousData,
+    select: (rows) => ({ rows: rows.slice(0, pageSize), hasNext: rows.length > pageSize }),
   })
 }
 
