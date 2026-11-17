@@ -49,3 +49,8 @@ async def rename_category(session: AsyncSession, category: Category, name: str) 
     await session.commit()
     return category
 
+
+async def delete_category(session: AsyncSession, category: Category) -> None:
+    # ON DELETE SET NULL on expenses.category_id: the user's expenses are kept, just uncategorised.
+    await session.delete(category)
+    await session.commit()

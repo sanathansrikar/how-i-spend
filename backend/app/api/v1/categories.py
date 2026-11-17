@@ -60,3 +60,13 @@ async def rename_category(
     category = await category_service.rename_category(session, category, payload.name)
     return CategoryRead(name=category.name)
 
+
+@router.delete("/{name}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_category(
+    name: str,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> None:
+    """Delete a category. Its expenses are kept and become uncategorised. 404 if not yours."""
+    category = await _get_own_category(session, user, name)
+    await category_service.delete_category(session, category)
