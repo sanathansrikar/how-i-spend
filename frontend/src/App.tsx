@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { Route, Routes } from 'react-router-dom'
+import { Link, Route, Routes } from 'react-router-dom'
+import ExpensesPage from './features/expenses/ExpensesPage'
 import { api } from './lib/api'
 
 function Home() {
@@ -14,7 +15,11 @@ function Home() {
   return (
     <section className="space-y-2">
       <h2 className="text-xl font-semibold">Welcome</h2>
-      <p className="text-slate-600">Expense tracking is coming soon.</p>
+      <p className="text-slate-600">
+        <Link to="/expenses" className="underline">
+          View your expenses
+        </Link>
+      </p>
       <p className="text-sm text-slate-500">
         API status: <span data-testid="api-status">{label}</span>
       </p>
@@ -33,6 +38,7 @@ export default function App() {
       <main className="mx-auto max-w-3xl px-4 py-6">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/expenses" element={<ExpensesPage />} />
         </Routes>
       </main>
     </div>
