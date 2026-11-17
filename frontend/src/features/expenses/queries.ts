@@ -44,6 +44,17 @@ export function useCategories() {
   })
 }
 
+export function useCreateCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    // The API answers {name}: the trimmed name as stored, which is what the expense must use.
+    mutationFn: (name: string) =>
+      api<{ name: string }>('/categories', { method: 'POST', body: JSON.stringify({ name }) }),
+    // Invalidate: the dropdown refetches and shows the new category straight away.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
+  })
+}
+
 export function useCreateExpense() {
   const queryClient = useQueryClient()
   return useMutation({
