@@ -12,3 +12,11 @@ export function formatDate(isoDate: string): string {
     year: 'numeric',
   })
 }
+
+/** "2026-02" -> first and last day of that month, as YYYY-MM-DD (the API takes inclusive dates). */
+export function monthRange(month: string): { from: string; to: string } {
+  const [year, monthNumber] = month.split('-').map(Number)
+  // Day 0 of the next month is the last day of this one, leap years included.
+  const lastDay = new Date(year, monthNumber, 0).getDate()
+  return { from: `${month}-01`, to: `${month}-${String(lastDay).padStart(2, '0')}` }
+}
