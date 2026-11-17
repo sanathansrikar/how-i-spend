@@ -17,7 +17,22 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   })
   if (!response.ok) {
-    throw new ApiError(response.status, response.statusText)
+    throw new ApiError(response.status, await errorMessage(response))
   }
+  // 204 No Content (e.g. DELETE) has no body to parse.
+  if (response.status === 204) return undefined as T
   return (await response.json()) as T
+}
+
+/** FastAPI explains errors as {"detail": "..."}; fall back to the HTTP status text. */
+async function errorMessage(response: Response): Promise<string> {
+  try {
+    const body: unknown = await response.json()
+    if (body && typeof body === 'object' && 'detail' in body && typeof body.detail === 'string') {
+      return body.detail
+    }
+  } catch {
+    // Not JSON: use the status text below.
+  }
+  return response.statusText
 }
