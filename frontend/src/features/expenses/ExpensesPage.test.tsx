@@ -74,3 +74,22 @@ test('shows an error when the API cannot be reached', async () => {
 
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not load expenses')
 })
+
+test('shows the note under the merchant when an expense has both', async () => {
+  stubApi([{ ...expense, note: 'team lunch' }])
+
+  renderPage()
+
+  const table = within(await screen.findByRole('table'))
+  expect(table.getByText('Starbucks')).toBeInTheDocument()
+  expect(table.getByText('team lunch')).toBeInTheDocument()
+})
+
+test('does not repeat the note when it is already the description', async () => {
+  stubApi([{ ...expense, merchant: null, note: 'cab home' }])
+
+  renderPage()
+
+  const table = within(await screen.findByRole('table'))
+  expect(await table.findAllByText('cab home')).toHaveLength(1)
+})

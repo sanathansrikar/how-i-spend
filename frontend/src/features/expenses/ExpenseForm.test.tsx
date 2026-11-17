@@ -88,3 +88,13 @@ test('does not send anything without an amount', async () => {
 
   expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
 })
+
+test('the amount box allows at most what the API stores (10 digits and 2 decimals)', async () => {
+  stubApi(jsonResponse({ id: '1' }, 201))
+  renderForm()
+
+  const amount = screen.getByLabelText('Amount')
+
+  expect(amount).toHaveAttribute('max', '9999999999.99')
+  expect(amount).toHaveAttribute('step', '0.01')
+})

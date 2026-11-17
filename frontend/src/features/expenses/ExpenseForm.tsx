@@ -7,6 +7,7 @@ import {
   useCategories,
   useCreateCategory,
   useCreateExpense,
+  useMe,
   useUpdateExpense,
   type Expense,
 } from './queries'
@@ -28,6 +29,7 @@ type Props = {
 
 export default function ExpenseForm({ expense, onDone }: Props) {
   const categories = useCategories()
+  const me = useMe()
   const createExpense = useCreateExpense()
   const updateExpense = useUpdateExpense()
   const createCategory = useCreateCategory()
@@ -41,6 +43,8 @@ export default function ExpenseForm({ expense, onDone }: Props) {
   // Initial state comes from the expense being edited; the parent gives the form a `key` per
   // expense, so switching to another one remounts it with fresh values.
   const [amount, setAmount] = useState(expense?.amount ?? '')
+  // Blank means "my default currency" when adding; editing starts from the expense's own.
+  const [currency, setCurrency] = useState(expense?.currency ?? '')
   const [spentOn, setSpentOn] = useState(expense?.spent_on ?? today())
   const [category, setCategory] = useState(expense?.category ?? '')
   const [merchant, setMerchant] = useState(expense?.merchant ?? '')
@@ -70,6 +74,8 @@ export default function ExpenseForm({ expense, onDone }: Props) {
           // PATCH semantics: null clears a field, so emptied text boxes are sent as null.
           changes: {
             amount,
+            // Blank on edit leaves the currency as it was.
+            ...(currency && { currency: currency.toUpperCase() }),
             spent_on: spentOn,
             category: categoryName || null,
             merchant: merchant || null,
@@ -83,6 +89,8 @@ export default function ExpenseForm({ expense, onDone }: Props) {
     createExpense.mutate(
       {
         amount,
+        // Blank leaves it out, and the API uses the user's own currency.
+        ...(currency && { currency: currency.toUpperCase() }),
         spent_on: spentOn,
         // Empty select means uncategorised; empty text fields are simply left out.
         category: categoryName || null,
@@ -92,6 +100,7 @@ export default function ExpenseForm({ expense, onDone }: Props) {
       {
         onSuccess: () => {
           setAmount('')
+          setCurrency('')
           setCategory('')
           setMerchant('')
           setNote('')
@@ -112,9 +121,24 @@ export default function ExpenseForm({ expense, onDone }: Props) {
           inputMode="decimal"
           step="0.01"
           min="0.01"
+          // The API stores up to 12 digits with 2 decimals, so 10 digits before the point.
+          max="9999999999.99"
           required
           value={amount}
           onChange={(event) => setAmount(event.target.value)}
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${id}-currency`}>Currency</Label>
+        <Input
+          id={`${id}-currency`}
+          maxLength={3}
+          // Three letters, like INR or USD; the API upper-cases them and checks the shape.
+          pattern="[A-Za-z]{3}"
+          title="Three letters, like INR or USD"
+          placeholder={me.data?.currency ?? ''}
+          value={currency}
+          onChange={(event) => setCurrency(event.target.value)}
         />
       </div>
       <div className="grid gap-1.5">

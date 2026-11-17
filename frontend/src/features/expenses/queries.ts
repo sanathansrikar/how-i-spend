@@ -6,7 +6,6 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { monthRange } from '@/lib/format'
 
 /** Mirrors the backend's ExpenseRead: category is a name, amount a decimal string. */
 export type Expense = {
@@ -23,6 +22,8 @@ export type Expense = {
 export type NewExpense = {
   amount: string
   spent_on: string
+  /** ISO 4217 code; omitted means the user's own currency. */
+  currency?: string
   category?: string | null
   merchant?: string
   note?: string
@@ -44,24 +45,23 @@ export type ExpenseListParams = {
   pageSize: number
   /** Zero-based page number. */
   page: number
-  /** YYYY-MM; empty or absent means all time. */
-  month?: string
-  /** A category name; empty or absent means all categories. */
-  category?: string
+  /** First and last day to include, as YYYY-MM-DD; empty or absent means no limit on that side. */
+  from?: string
+  to?: string
+  /** Category names; an expense matches if it is in any of them. Empty or absent means all. */
+  category?: string[]
 }
 
-function listQuery({ pageSize, page, month, category }: ExpenseListParams): string {
+function listQuery({ pageSize, page, from, to, category }: ExpenseListParams): string {
   const query = new URLSearchParams({
     // One row more than the page holds: if it comes back, a next page exists.
     limit: String(pageSize + 1),
     offset: String(page * pageSize),
   })
-  if (month) {
-    const { from, to } = monthRange(month)
-    query.set('date_from', from)
-    query.set('date_to', to)
-  }
-  if (category) query.set('category', category)
+  if (from) query.set('date_from', from)
+  if (to) query.set('date_to', to)
+  // One `category=` per name: the API reads repeated parameters as "any of these".
+  for (const name of category ?? []) query.append('category', name)
   return query.toString()
 }
 
@@ -75,6 +75,14 @@ export function useExpenses(params: ExpenseListParams) {
     // Keep showing the old page while the next one loads, instead of flashing "Loading…".
     placeholderData: keepPreviousData,
     select: (rows) => ({ rows: rows.slice(0, pageSize), hasNext: rows.length > pageSize }),
+  })
+}
+
+/** The signed-in user's profile; the form only needs its default currency. */
+export function useMe() {
+  return useQuery({
+    queryKey: ['me'],
+    queryFn: () => api<{ currency: string }>('/me'),
   })
 }
 
@@ -110,6 +118,7 @@ export function useCreateExpense() {
 /** Mirrors the backend's ExpenseUpdate: send null to clear category, merchant or note. */
 export type ExpenseChanges = {
   amount?: string
+  currency?: string
   spent_on?: string
   category?: string | null
   merchant?: string | null

@@ -87,6 +87,7 @@ test('saving sends a PATCH with the changes and closes the dialog', async () => 
     url: '/api/v1/expenses/abc',
     body: {
       amount: '300',
+      currency: 'INR',
       spent_on: '2026-11-02',
       category: 'Bills',
       merchant: 'Starbucks',
