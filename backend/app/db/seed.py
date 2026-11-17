@@ -11,7 +11,6 @@ from app.core.config import get_settings
 from app.db.session import SessionFactory, engine
 from app.models import Category, Expense, User
 
-SEED_EMAIL = "demo@example.com"
 CATEGORY_NAMES = ["Food", "Transport", "Entertainment", "Bills"]
 # (category, amount, merchant, day of month)
 SAMPLE_EXPENSES = [
@@ -25,13 +24,14 @@ SAMPLE_EXPENSES = [
 
 async def seed(session: AsyncSession) -> bool:
     # Idempotent: re-running must not duplicate data, so we bail out if the demo user exists.
-    existing = await session.scalar(select(User).where(User.email == SEED_EMAIL))
+    email = get_settings().demo_user_email
+    existing = await session.scalar(select(User).where(User.email == email))
     if existing is not None:
         return False
 
     user = User(
         full_name="Demo User",
-        email=SEED_EMAIL,
+        email=email,
         currency="INR",
         monthly_income=Decimal("60000.00"),
         monthly_budget=Decimal("40000.00"),
@@ -65,7 +65,8 @@ async def main() -> None:
     async with SessionFactory() as session:
         created = await seed(session)
     await engine.dispose()
-    print("Seeded demo data." if created else f"Already seeded ({SEED_EMAIL} exists); skipped.")
+    email = get_settings().demo_user_email
+    print("Seeded demo data." if created else f"Already seeded ({email} exists); skipped.")
 
 
 if __name__ == "__main__":
