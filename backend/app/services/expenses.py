@@ -2,6 +2,7 @@ import uuid
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -85,3 +86,15 @@ async def list_expenses(
     # Pagination: LIMIT/OFFSET bounds the response size however large the table grows.
     result = await session.scalars(query.limit(limit).offset(offset))
     return result.all()
+
+
+async def update_expense(
+    session: AsyncSession, expense: Expense, fields: dict[str, Any]
+) -> Expense:
+    # Partial update: only the keys the caller sent are written; "category" holds a Category
+    # object (or None to clear it), already resolved and scoped to the user by the caller.
+    for name, value in fields.items():
+        setattr(expense, name, value)
+    await session.commit()
+    return expense
+

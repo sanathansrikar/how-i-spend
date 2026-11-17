@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.db.session import get_session
-from app.models import User
-from app.schemas.expense import ExpenseCreate, ExpenseRead
+from app.models import Category, User
+from app.schemas.expense import ExpenseCreate, ExpenseRead, ExpenseUpdate
 from app.services import categories as category_service
 from app.services import expenses as expense_service
 
@@ -17,6 +17,16 @@ router = APIRouter(prefix="/expenses", tags=["expenses"])
 
 # Constrained alias: each category name in the query must be 1-50 characters.
 CategoryName = Annotated[str, StringConstraints(min_length=1, max_length=50)]
+
+
+async def _resolve_category(session: AsyncSession, user: User, name: str | None) -> Category | None:
+    # Names in, objects out: None means uncategorised; a name that is not the user's is a 422.
+    if name is None:
+        return None
+    category = await category_service.get_by_name(session, user.id, name)
+    if category is None:
+        raise HTTPException(status_code=422, detail=f"Unknown categories: {name}.")
+    return category
 
 
 @router.get("", response_model=list[ExpenseRead])
@@ -67,11 +77,7 @@ async def create_expense(
 
     `category` is a name; one that is not yours returns 422. `currency` defaults to yours.
     """
-    category = None
-    if payload.category is not None:
-        category = await category_service.get_by_name(session, user.id, payload.category)
-        if category is None:
-            raise HTTPException(status_code=422, detail=f"Unknown categories: {payload.category}.")
+    category = await _resolve_category(session, user, payload.category)
     expense = await expense_service.create_expense(
         session,
         user,
@@ -96,3 +102,26 @@ async def get_expense(
     if expense is None:
         raise HTTPException(status_code=404, detail="Expense not found.")
     return ExpenseRead.model_validate(expense)
+
+
+@router.patch("/{expense_id}", response_model=ExpenseRead)
+async def update_expense(
+    expense_id: uuid.UUID,
+    payload: ExpenseUpdate,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> ExpenseRead:
+    """Change some fields of one of your expenses; fields you leave out stay as they are.
+
+    Send `null` for `category`, `merchant` or `note` to clear them. 404 if it is not yours.
+    """
+    expense = await expense_service.get_expense(session, user.id, expense_id)
+    if expense is None:
+        raise HTTPException(status_code=404, detail="Expense not found.")
+    # exclude_unset: only what the client actually sent, so omitted fields are not overwritten.
+    fields = payload.model_dump(exclude_unset=True)
+    if "category" in fields:
+        fields["category"] = await _resolve_category(session, user, fields["category"])
+    expense = await expense_service.update_expense(session, expense, fields)
+    return ExpenseRead.model_validate(expense)
+
