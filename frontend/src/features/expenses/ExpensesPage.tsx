@@ -191,7 +191,13 @@ export default function ExpensesPage() {
                 {rows.map((expense) => (
                   <TableRow key={expense.id}>
                     <TableCell>{formatDate(expense.spent_on)}</TableCell>
-                    <TableCell>{describe(expense)}</TableCell>
+                    <TableCell>
+                      {describe(expense)}
+                      {/* With a merchant, the note is extra detail: show it under the name. */}
+                      {expense.merchant && expense.note && (
+                        <span className="block text-xs text-muted-foreground">{expense.note}</span>
+                      )}
+                    </TableCell>
                     <TableCell>{expense.category ?? 'Uncategorised'}</TableCell>
                     <TableCell className="text-right tabular-nums">
                       {formatMoney(expense.amount, expense.currency)}

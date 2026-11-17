@@ -121,6 +121,8 @@ export default function ExpenseForm({ expense, onDone }: Props) {
           inputMode="decimal"
           step="0.01"
           min="0.01"
+          // The API stores up to 12 digits with 2 decimals, so 10 digits before the point.
+          max="9999999999.99"
           required
           value={amount}
           onChange={(event) => setAmount(event.target.value)}
