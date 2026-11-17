@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
 /** Mirrors the backend's ExpenseRead: category is a name, amount a decimal string. */
@@ -21,6 +21,14 @@ export type NewExpense = {
   note?: string
 }
 
+/** Any change to an expense changes the list and the monthly totals, so refresh both. */
+function refreshExpenseData(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+    queryClient.invalidateQueries({ queryKey: ['summary'] }),
+  ])
+}
+
 export function useExpenses() {
   return useQuery({
     queryKey: ['expenses'],
@@ -41,8 +49,8 @@ export function useCreateExpense() {
   return useMutation({
     mutationFn: (expense: NewExpense) =>
       api<Expense>('/expenses', { method: 'POST', body: JSON.stringify(expense) }),
-    // Invalidate: marks the list stale so it refetches and shows the new expense.
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+    // Invalidate: marks cached data stale so it refetches and shows the change.
+    onSuccess: () => refreshExpenseData(queryClient),
   })
 }
 
@@ -60,7 +68,7 @@ export function useUpdateExpense() {
   return useMutation({
     mutationFn: ({ id, changes }: { id: string; changes: ExpenseChanges }) =>
       api<Expense>(`/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(changes) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+    onSuccess: () => refreshExpenseData(queryClient),
   })
 }
 
@@ -68,6 +76,6 @@ export function useDeleteExpense() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => api<void>(`/expenses/${id}`, { method: 'DELETE' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+    onSuccess: () => refreshExpenseData(queryClient),
   })
 }
