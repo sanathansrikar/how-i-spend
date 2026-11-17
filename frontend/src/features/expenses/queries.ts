@@ -22,6 +22,8 @@ export type Expense = {
 export type NewExpense = {
   amount: string
   spent_on: string
+  /** ISO 4217 code; omitted means the user's own currency. */
+  currency?: string
   category?: string | null
   merchant?: string
   note?: string
@@ -76,6 +78,14 @@ export function useExpenses(params: ExpenseListParams) {
   })
 }
 
+/** The signed-in user's profile; the form only needs its default currency. */
+export function useMe() {
+  return useQuery({
+    queryKey: ['me'],
+    queryFn: () => api<{ currency: string }>('/me'),
+  })
+}
+
 /** Category names only: the API identifies categories by name, never by id. */
 export function useCategories() {
   return useQuery({
@@ -108,6 +118,7 @@ export function useCreateExpense() {
 /** Mirrors the backend's ExpenseUpdate: send null to clear category, merchant or note. */
 export type ExpenseChanges = {
   amount?: string
+  currency?: string
   spent_on?: string
   category?: string | null
   merchant?: string | null
