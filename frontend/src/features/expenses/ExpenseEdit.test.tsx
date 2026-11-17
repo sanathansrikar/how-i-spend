@@ -45,35 +45,44 @@ function patchCall(fetchMock: ReturnType<typeof stubApi>) {
   return call && { url: call[0], body: JSON.parse(call[1]?.body as string) }
 }
 
-test('Edit fills the form with the expense', async () => {
+/** Clicks Edit on the Starbucks row and returns queries scoped to the opened dialog. */
+async function openEditDialog(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: 'Edit Starbucks' }))
+  const dialog = within(await screen.findByRole('dialog', { name: 'Edit expense' }))
+  // Wait for the category options, so selecting one works.
+  await dialog.findByRole('option', { name: 'Bills' })
+  return dialog
+}
+
+test('Edit opens a dialog filled with the expense and leaves the add form alone', async () => {
   stubApi()
   const user = userEvent.setup()
   renderPage()
 
-  await user.click(await screen.findByRole('button', { name: 'Edit Starbucks' }))
+  const dialog = await openEditDialog(user)
 
-  expect(screen.getByText('Edit expense')).toBeInTheDocument()
-  expect(screen.getByLabelText('Amount')).toHaveValue(250)
-  expect(screen.getByLabelText('Date')).toHaveValue('2026-11-02')
-  expect(screen.getByLabelText('Merchant')).toHaveValue('Starbucks')
-  expect(screen.getByLabelText('Note')).toHaveValue('latte')
+  expect(dialog.getByLabelText('Amount')).toHaveValue(250)
+  expect(dialog.getByLabelText('Date')).toHaveValue('2026-11-02')
+  expect(dialog.getByLabelText('Merchant')).toHaveValue('Starbucks')
+  expect(dialog.getByLabelText('Note')).toHaveValue('latte')
+  // The add form on the page keeps its own, empty values: the other "Amount" input.
+  const dialogEl = screen.getByRole('dialog')
+  const pageAmount = screen.getAllByLabelText('Amount').find((el) => !dialogEl.contains(el))
+  expect(pageAmount).toHaveValue(null)
 })
 
-test('saving sends a PATCH with the changes, then returns to the add form', async () => {
+test('saving sends a PATCH with the changes and closes the dialog', async () => {
   const fetchMock = stubApi()
   const user = userEvent.setup()
   renderPage()
-  await user.click(await screen.findByRole('button', { name: 'Edit Starbucks' }))
-  await within(screen.getByLabelText('Category').closest('form')!).findByRole('option', {
-    name: 'Bills',
-  })
+  const dialog = await openEditDialog(user)
 
-  await user.clear(screen.getByLabelText('Amount'))
-  await user.type(screen.getByLabelText('Amount'), '300')
-  await user.selectOptions(screen.getByLabelText('Category'), 'Bills')
-  await user.click(screen.getByRole('button', { name: 'Save changes' }))
+  await user.clear(dialog.getByLabelText('Amount'))
+  await user.type(dialog.getByLabelText('Amount'), '300')
+  await user.selectOptions(dialog.getByLabelText('Category'), 'Bills')
+  await user.click(dialog.getByRole('button', { name: 'Save changes' }))
 
-  await waitFor(() => expect(screen.getByText('Add expense', { selector: 'div' })).toBeVisible())
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(patchCall(fetchMock)).toEqual({
     url: '/api/v1/expenses/abc',
     body: {
@@ -90,37 +99,48 @@ test('emptied optional fields are sent as null so they are cleared', async () =>
   const fetchMock = stubApi()
   const user = userEvent.setup()
   renderPage()
-  await user.click(await screen.findByRole('button', { name: 'Edit Starbucks' }))
+  const dialog = await openEditDialog(user)
 
-  await user.clear(screen.getByLabelText('Merchant'))
-  await user.clear(screen.getByLabelText('Note'))
-  await user.click(screen.getByRole('button', { name: 'Save changes' }))
+  await user.clear(dialog.getByLabelText('Merchant'))
+  await user.clear(dialog.getByLabelText('Note'))
+  await user.click(dialog.getByRole('button', { name: 'Save changes' }))
 
   await waitFor(() => expect(patchCall(fetchMock)).toBeTruthy())
   expect(patchCall(fetchMock)?.body).toMatchObject({ merchant: null, note: null })
 })
 
-test('Cancel goes back to the add form without saving', async () => {
+test('Cancel closes the dialog without saving', async () => {
   const fetchMock = stubApi()
   const user = userEvent.setup()
   renderPage()
-  await user.click(await screen.findByRole('button', { name: 'Edit Starbucks' }))
+  const dialog = await openEditDialog(user)
 
-  await user.click(screen.getByRole('button', { name: 'Cancel' }))
+  await user.click(dialog.getByRole('button', { name: 'Cancel' }))
 
-  expect(screen.queryByText('Edit expense')).not.toBeInTheDocument()
-  expect(screen.getByLabelText('Amount')).toHaveValue(null)
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   expect(patchCall(fetchMock)).toBeUndefined()
 })
 
-test('a backend error is shown and the form stays in edit mode', async () => {
+test('Escape closes the dialog without saving', async () => {
+  const fetchMock = stubApi()
+  const user = userEvent.setup()
+  renderPage()
+  await openEditDialog(user)
+
+  await user.keyboard('{Escape}')
+
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  expect(patchCall(fetchMock)).toBeUndefined()
+})
+
+test('a backend error is shown and the dialog stays open', async () => {
   stubApi(res({ detail: 'Unknown categories: Bills.' }, 422, false))
   const user = userEvent.setup()
   renderPage()
-  await user.click(await screen.findByRole('button', { name: 'Edit Starbucks' }))
+  const dialog = await openEditDialog(user)
 
-  await user.click(screen.getByRole('button', { name: 'Save changes' }))
+  await user.click(dialog.getByRole('button', { name: 'Save changes' }))
 
-  expect(await screen.findByRole('alert')).toHaveTextContent('Unknown categories: Bills.')
-  expect(screen.getByText('Edit expense')).toBeInTheDocument()
+  expect(await dialog.findByRole('alert')).toHaveTextContent('Unknown categories: Bills.')
+  expect(screen.getByRole('dialog', { name: 'Edit expense' })).toBeInTheDocument()
 })
