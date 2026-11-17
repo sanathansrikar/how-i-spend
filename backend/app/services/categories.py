@@ -16,6 +16,15 @@ async def find_unknown_names(
     return [name for name in dict.fromkeys(names) if name.lower() not in known]
 
 
+async def get_by_name(session: AsyncSession, user_id: uuid.UUID, name: str) -> Category | None:
+    # Tenant scoping + case-insensitive match: "food" finds the user's "Food", never another user's.
+    return await session.scalar(
+        select(Category).where(
+            Category.user_id == user_id, func.lower(Category.name) == name.lower()
+        )
+    )
+
+
 async def list_categories(session: AsyncSession, user_id: uuid.UUID) -> Sequence[Category]:
     # Tenant scoping: only the caller's own categories are ever returned.
     # Case-insensitive sort so "bills" and "Bills" order together; id breaks any tie.

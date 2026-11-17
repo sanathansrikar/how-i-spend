@@ -1,12 +1,47 @@
 import uuid
 from collections.abc import Sequence
 from datetime import date
+from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Category, Expense
+from app.models import Category, Expense, User
+
+
+async def create_expense(
+    session: AsyncSession,
+    user: User,
+    *,
+    amount: Decimal,
+    spent_on: date,
+    category: Category | None,
+    currency: str | None,
+    merchant: str | None,
+    note: str | None,
+) -> Expense:
+    expense = Expense(
+        # user_id comes from the authenticated user, never from the request body.
+        user_id=user.id,
+        category_id=category.id if category else None,
+        amount=amount,
+        # Default: fall back to the user's own currency when the client does not say.
+        currency=currency or user.currency,
+        spent_on=spent_on,
+        merchant=merchant,
+        note=note,
+        # Set the relationship up front: the response needs the category name, and lazy loading
+        # it later would fail in async code.
+        category=category,
+    )
+    session.add(expense)
+    # Unit of work: one commit makes the whole row durable (or none of it).
+    await session.commit()
+    # Re-read the amount: the DB rounds to 2 places, so "5" comes back as "5.00", like GET.
+    await session.refresh(expense, ["amount"])
+    return expense
 
 
 async def get_expense(
@@ -53,3 +88,21 @@ async def list_expenses(
     # Pagination: LIMIT/OFFSET bounds the response size however large the table grows.
     result = await session.scalars(query.limit(limit).offset(offset))
     return result.all()
+
+
+async def update_expense(
+    session: AsyncSession, expense: Expense, fields: dict[str, Any]
+) -> Expense:
+    # Partial update: only the keys the caller sent are written; "category" holds a Category
+    # object (or None to clear it), already resolved and scoped to the user by the caller.
+    for name, value in fields.items():
+        setattr(expense, name, value)
+    await session.commit()
+    # Re-read the amount: the DB rounds to 2 places, so "5" comes back as "5.00", like GET.
+    await session.refresh(expense, ["amount"])
+    return expense
+
+
+async def delete_expense(session: AsyncSession, expense: Expense) -> None:
+    await session.delete(expense)
+    await session.commit()
