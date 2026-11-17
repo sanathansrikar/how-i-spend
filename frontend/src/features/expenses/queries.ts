@@ -6,6 +6,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { monthRange } from '@/lib/format'
 
 /** Mirrors the backend's ExpenseRead: category is a name, amount a decimal string. */
 export type Expense = {
@@ -43,16 +44,34 @@ export type ExpenseListParams = {
   pageSize: number
   /** Zero-based page number. */
   page: number
+  /** YYYY-MM; empty or absent means all time. */
+  month?: string
+  /** A category name; empty or absent means all categories. */
+  category?: string
+}
+
+function listQuery({ pageSize, page, month, category }: ExpenseListParams): string {
+  const query = new URLSearchParams({
+    // One row more than the page holds: if it comes back, a next page exists.
+    limit: String(pageSize + 1),
+    offset: String(page * pageSize),
+  })
+  if (month) {
+    const { from, to } = monthRange(month)
+    query.set('date_from', from)
+    query.set('date_to', to)
+  }
+  if (category) query.set('category', category)
+  return query.toString()
 }
 
 /** One page of expenses, plus whether another page follows it. */
 export function useExpenses(params: ExpenseListParams) {
-  const { pageSize, page } = params
+  const { pageSize } = params
   return useQuery({
     queryKey: ['expenses', params],
-    // Ask for one row more than the page holds: if it comes back, a next page exists. The API
-    // gives no total count, so this avoids a second request just to enable "Next".
-    queryFn: () => api<Expense[]>(`/expenses?limit=${pageSize + 1}&offset=${page * pageSize}`),
+    // The API gives no total count, so listQuery's extra row tells us whether "Next" is enabled.
+    queryFn: () => api<Expense[]>(`/expenses?${listQuery(params)}`),
     // Keep showing the old page while the next one loads, instead of flashing "Loading…".
     placeholderData: keepPreviousData,
     select: (rows) => ({ rows: rows.slice(0, pageSize), hasNext: rows.length > pageSize }),

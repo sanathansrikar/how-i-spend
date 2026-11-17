@@ -23,7 +23,9 @@ import {
 import { formatDate, formatMoney } from '@/lib/format'
 import ExpenseForm from './ExpenseForm'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-import { PAGE_SIZES, useDeleteExpense, useExpenses, type Expense } from './queries'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { PAGE_SIZES, useCategories, useDeleteExpense, useExpenses, type Expense } from './queries'
 
 function describe(expense: Expense): string {
   return expense.merchant ?? expense.note ?? '—'
@@ -33,7 +35,12 @@ export default function ExpensesPage() {
   const [pageSize, setPageSize] = useState<number>(PAGE_SIZES[0])
   // Zero-based; the screen shows page + 1.
   const [page, setPage] = useState(0)
-  const expenses = useExpenses({ pageSize, page })
+  // Filters: empty string means "no filter". Changing one starts again from page 1.
+  const [month, setMonth] = useState('')
+  const [category, setCategory] = useState('')
+  const filtersActive = month !== '' || category !== ''
+  const categories = useCategories()
+  const expenses = useExpenses({ pageSize, page, month, category })
   const rows = expenses.data?.rows ?? []
   const deleteExpense = useDeleteExpense()
   // Which expense a dialog is about; null means that dialog is closed.
@@ -66,6 +73,52 @@ export default function ExpensesPage() {
           <CardTitle>Expenses</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 flex flex-wrap items-end gap-4">
+            <div className="grid gap-1.5">
+              <Label htmlFor="filter-month">Month</Label>
+              <Input
+                id="filter-month"
+                type="month"
+                className="w-44"
+                value={month}
+                onChange={(event) => {
+                  setMonth(event.target.value)
+                  setPage(0)
+                }}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="filter-category">Category</Label>
+              <NativeSelect
+                id="filter-category"
+                value={category}
+                onChange={(event) => {
+                  setCategory(event.target.value)
+                  setPage(0)
+                }}
+              >
+                <NativeSelectOption value="">All categories</NativeSelectOption>
+                {categories.data?.map((name) => (
+                  <NativeSelectOption key={name} value={name}>
+                    {name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
+            {filtersActive && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setMonth('')
+                  setCategory('')
+                  setPage(0)
+                }}
+              >
+                Clear filters
+              </Button>
+            )}
+          </div>
           {expenses.isPending && <p className="text-muted-foreground">Loading…</p>}
           {expenses.isError && (
             <p role="alert" className="text-destructive">
@@ -74,7 +127,11 @@ export default function ExpensesPage() {
           )}
           {expenses.isSuccess && rows.length === 0 && (
             <p className="text-muted-foreground">
-              {page === 0 ? 'No expenses yet.' : 'No expenses on this page.'}
+              {page > 0
+                ? 'No expenses on this page.'
+                : filtersActive
+                  ? 'No expenses match these filters.'
+                  : 'No expenses yet.'}
             </p>
           )}
           {expenses.isSuccess && rows.length > 0 && (
