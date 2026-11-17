@@ -42,3 +42,10 @@ async def create_category(session: AsyncSession, user_id: uuid.UUID, name: str) 
     # Unit of work: commit makes the row durable.
     await session.commit()
     return category
+
+
+async def rename_category(session: AsyncSession, category: Category, name: str) -> Category:
+    category.name = name
+    await session.commit()
+    return category
+

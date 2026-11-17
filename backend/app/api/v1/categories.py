@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.db.session import get_session
-from app.models import User
+from app.models import Category, User
 from app.schemas.category import CategoryCreate, CategoryRead
 from app.services import categories as category_service
 
@@ -35,3 +35,28 @@ async def create_category(
         raise HTTPException(status_code=409, detail=f"Category already exists: {payload.name}.")
     category = await category_service.create_category(session, user.id, payload.name)
     return CategoryRead(name=category.name)
+
+
+async def _get_own_category(session: AsyncSession, user: User, name: str) -> Category:
+    category = await category_service.find_category(session, user.id, name)
+    if category is None:
+        raise HTTPException(status_code=404, detail="Category not found.")
+    return category
+
+
+@router.patch("/{name}", response_model=CategoryRead)
+async def rename_category(
+    name: str,
+    payload: CategoryCreate,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> CategoryRead:
+    """Rename a category; its expenses follow. 404 if it is not yours, 409 if the name is taken."""
+    category = await _get_own_category(session, user, name)
+    clash = await category_service.find_category(session, user.id, payload.name)
+    # Changing only the letter case of the same category is allowed; any other match is a clash.
+    if clash is not None and clash.id != category.id:
+        raise HTTPException(status_code=409, detail=f"Category already exists: {payload.name}.")
+    category = await category_service.rename_category(session, category, payload.name)
+    return CategoryRead(name=category.name)
+
