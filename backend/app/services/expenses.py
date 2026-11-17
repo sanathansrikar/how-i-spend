@@ -39,6 +39,8 @@ async def create_expense(
     session.add(expense)
     # Unit of work: one commit makes the whole row durable (or none of it).
     await session.commit()
+    # Re-read the amount: the DB rounds to 2 places, so "5" comes back as "5.00", like GET.
+    await session.refresh(expense, ["amount"])
     return expense
 
 
@@ -96,6 +98,8 @@ async def update_expense(
     for name, value in fields.items():
         setattr(expense, name, value)
     await session.commit()
+    # Re-read the amount: the DB rounds to 2 places, so "5" comes back as "5.00", like GET.
+    await session.refresh(expense, ["amount"])
     return expense
 
 

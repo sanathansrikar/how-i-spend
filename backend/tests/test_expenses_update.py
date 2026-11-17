@@ -125,3 +125,9 @@ async def test_someone_elses_expense_is_404_and_untouched(
     assert response.status_code == 404
     await session.refresh(theirs)
     assert theirs.amount == Decimal("7.00")
+
+
+async def test_amount_is_returned_with_two_decimals(client: AsyncClient, expense: Expense) -> None:
+    response = await client.patch(f"{URL}/{expense.id}", json={"amount": "20"})
+
+    assert response.json()["amount"] == "20.00"

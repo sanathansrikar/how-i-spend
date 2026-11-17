@@ -111,3 +111,10 @@ async def test_expense_belongs_to_the_current_user(
     assert row is not None
     assert row.user_id == demo_user.id
     assert row.amount == Decimal("5.00")
+
+
+async def test_amount_is_returned_with_two_decimals(client: AsyncClient, demo_user: User) -> None:
+    created = await client.post(URL, json={"amount": "5", "spent_on": "2026-11-02"})
+
+    # Same shape as GET: the DB rounds to 2 places, so the response must not echo "5".
+    assert created.json()["amount"] == "5.00"
