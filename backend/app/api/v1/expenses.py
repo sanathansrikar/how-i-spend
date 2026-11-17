@@ -23,7 +23,7 @@ async def _resolve_category(session: AsyncSession, user: User, name: str | None)
     # Names in, objects out: None means uncategorised; a name that is not the user's is a 422.
     if name is None:
         return None
-    category = await category_service.get_by_name(session, user.id, name)
+    category = await category_service.find_category(session, user.id, name)
     if category is None:
         raise HTTPException(status_code=422, detail=f"Unknown categories: {name}.")
     return category
