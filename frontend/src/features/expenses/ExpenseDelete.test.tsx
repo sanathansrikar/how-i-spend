@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ExpensesPage from './ExpensesPage'
 
@@ -48,64 +48,73 @@ function deleteCalls(fetchMock: ReturnType<typeof stubApi>) {
   return fetchMock.mock.calls.filter(([, init]) => init?.method === 'DELETE')
 }
 
-test('the first click only asks for confirmation', async () => {
+async function openDeleteDialog(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: 'Delete Starbucks' }))
+  return within(await screen.findByRole('alertdialog'))
+}
+
+test('Delete opens a dialog naming the expense and sends nothing yet', async () => {
   const fetchMock = stubApi()
   const user = userEvent.setup()
   renderPage()
 
-  await user.click(await screen.findByRole('button', { name: 'Delete Starbucks' }))
+  const dialog = await openDeleteDialog(user)
 
-  expect(screen.getByText('Delete?')).toBeInTheDocument()
+  expect(dialog.getByText('Delete this expense?')).toBeInTheDocument()
+  expect(
+    dialog.getByText(/Starbucks, ₹250\.00 on 2 Nov 2026\. This cannot be undone\./),
+  ).toBeInTheDocument()
   expect(deleteCalls(fetchMock)).toHaveLength(0)
 })
 
-test('confirming deletes the expense and it leaves the list', async () => {
+test('confirming deletes the expense, closes the dialog and it leaves the list', async () => {
   const fetchMock = stubApi()
   const user = userEvent.setup()
   renderPage()
-  await user.click(await screen.findByRole('button', { name: 'Delete Starbucks' }))
+  const dialog = await openDeleteDialog(user)
 
-  await user.click(screen.getByRole('button', { name: 'Confirm delete Starbucks' }))
+  await user.click(dialog.getByRole('button', { name: 'Delete' }))
 
   expect(await screen.findByText('No expenses yet.')).toBeInTheDocument()
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
   expect(deleteCalls(fetchMock)).toHaveLength(1)
   expect(deleteCalls(fetchMock)[0][0]).toBe('/api/v1/expenses/abc')
 })
 
-test('No keeps the expense and sends nothing', async () => {
+test('Keep it closes the dialog and keeps the expense', async () => {
   const fetchMock = stubApi()
   const user = userEvent.setup()
   renderPage()
-  await user.click(await screen.findByRole('button', { name: 'Delete Starbucks' }))
+  const dialog = await openDeleteDialog(user)
 
-  await user.click(screen.getByRole('button', { name: 'No' }))
+  await user.click(dialog.getByRole('button', { name: 'Keep it' }))
 
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
   expect(screen.getByText('Starbucks')).toBeInTheDocument()
-  expect(screen.queryByText('Delete?')).not.toBeInTheDocument()
   expect(deleteCalls(fetchMock)).toHaveLength(0)
 })
 
-test('a failed delete shows the reason and keeps the expense', async () => {
+test('Escape closes the dialog without deleting', async () => {
+  const fetchMock = stubApi()
+  const user = userEvent.setup()
+  renderPage()
+  await openDeleteDialog(user)
+
+  await user.keyboard('{Escape}')
+
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+  expect(deleteCalls(fetchMock)).toHaveLength(0)
+})
+
+test('a failed delete shows the reason in the dialog and keeps the expense', async () => {
   stubApi({ ok: false, status: 404, statusText: 'Not Found' })
   const user = userEvent.setup()
   renderPage()
-  await user.click(await screen.findByRole('button', { name: 'Delete Starbucks' }))
+  const dialog = await openDeleteDialog(user)
 
-  await user.click(screen.getByRole('button', { name: 'Confirm delete Starbucks' }))
+  await user.click(dialog.getByRole('button', { name: 'Delete' }))
 
-  expect(await screen.findByRole('alert')).toHaveTextContent('Could not delete: Expense not found.')
+  expect(await dialog.findByRole('alert')).toHaveTextContent('Could not delete: Expense not found.')
+  expect(screen.getByRole('alertdialog')).toBeInTheDocument()
   expect(screen.getByText('Starbucks')).toBeInTheDocument()
-})
-
-test('deleting the expense being edited returns the form to add mode', async () => {
-  stubApi()
-  const user = userEvent.setup()
-  renderPage()
-  await user.click(await screen.findByRole('button', { name: 'Edit Starbucks' }))
-  expect(screen.getByText('Edit expense')).toBeInTheDocument()
-
-  await user.click(screen.getByRole('button', { name: 'Delete Starbucks' }))
-  await user.click(screen.getByRole('button', { name: 'Confirm delete Starbucks' }))
-
-  await waitFor(() => expect(screen.queryByText('Edit expense')).not.toBeInTheDocument())
 })

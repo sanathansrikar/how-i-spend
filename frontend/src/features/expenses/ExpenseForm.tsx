@@ -1,6 +1,5 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
@@ -23,6 +22,9 @@ export default function ExpenseForm({ expense, onDone }: Props) {
   const createExpense = useCreateExpense()
   const updateExpense = useUpdateExpense()
   const mutation = expense ? updateExpense : createExpense
+  // Unique ids: the add form and the edit dialog can be on screen together, and each label must
+  // point at its own input.
+  const id = useId()
   // Initial state comes from the expense being edited; the parent gives the form a `key` per
   // expense, so switching to another one remounts it with fresh values.
   const [amount, setAmount] = useState(expense?.amount ?? '')
@@ -73,81 +75,74 @@ export default function ExpenseForm({ expense, onDone }: Props) {
   const label = expense ? 'Save changes' : 'Add expense'
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{expense ? 'Edit expense' : 'Add expense'}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
-          <div className="grid gap-1.5">
-            <Label htmlFor="amount">Amount</Label>
-            <Input
-              id="amount"
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              min="0.01"
-              required
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="spent_on">Date</Label>
-            <Input
-              id="spent_on"
-              type="date"
-              required
-              value={spentOn}
-              onChange={(event) => setSpentOn(event.target.value)}
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="category">Category</Label>
-            <NativeSelect
-              id="category"
-              className="w-full"
-              value={category}
-              onChange={(event) => setCategory(event.target.value)}
-            >
-              <NativeSelectOption value="">Uncategorised</NativeSelectOption>
-              {categories.data?.map((name) => (
-                <NativeSelectOption key={name} value={name}>
-                  {name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="merchant">Merchant</Label>
-            <Input
-              id="merchant"
-              maxLength={100}
-              value={merchant}
-              onChange={(event) => setMerchant(event.target.value)}
-            />
-          </div>
-          <div className="grid gap-1.5 sm:col-span-2">
-            <Label htmlFor="note">Note</Label>
-            <Input id="note" value={note} onChange={(event) => setNote(event.target.value)} />
-          </div>
-          {mutation.isError && (
-            <p role="alert" className="text-sm text-destructive sm:col-span-2">
-              {mutation.error.message}
-            </p>
-          )}
-          <div className="flex gap-2 sm:col-span-2">
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : label}
-            </Button>
-            {expense && (
-              <Button type="button" variant="outline" onClick={() => onDone?.()}>
-                Cancel
-              </Button>
-            )}
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+    <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${id}-amount`}>Amount</Label>
+        <Input
+          id={`${id}-amount`}
+          type="number"
+          inputMode="decimal"
+          step="0.01"
+          min="0.01"
+          required
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${id}-spent_on`}>Date</Label>
+        <Input
+          id={`${id}-spent_on`}
+          type="date"
+          required
+          value={spentOn}
+          onChange={(event) => setSpentOn(event.target.value)}
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${id}-category`}>Category</Label>
+        <NativeSelect
+          id={`${id}-category`}
+          className="w-full"
+          value={category}
+          onChange={(event) => setCategory(event.target.value)}
+        >
+          <NativeSelectOption value="">Uncategorised</NativeSelectOption>
+          {categories.data?.map((name) => (
+            <NativeSelectOption key={name} value={name}>
+              {name}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${id}-merchant`}>Merchant</Label>
+        <Input
+          id={`${id}-merchant`}
+          maxLength={100}
+          value={merchant}
+          onChange={(event) => setMerchant(event.target.value)}
+        />
+      </div>
+      <div className="grid gap-1.5 sm:col-span-2">
+        <Label htmlFor={`${id}-note`}>Note</Label>
+        <Input id={`${id}-note`} value={note} onChange={(event) => setNote(event.target.value)} />
+      </div>
+      {mutation.isError && (
+        <p role="alert" className="text-sm text-destructive sm:col-span-2">
+          {mutation.error.message}
+        </p>
+      )}
+      <div className="flex gap-2 sm:col-span-2">
+        <Button type="submit" disabled={mutation.isPending}>
+          {mutation.isPending ? 'Saving…' : label}
+        </Button>
+        {expense && (
+          <Button type="button" variant="outline" onClick={() => onDone?.()}>
+            Cancel
+          </Button>
+        )}
+      </div>
+    </form>
   )
 }
