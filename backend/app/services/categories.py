@@ -25,3 +25,20 @@ async def list_categories(session: AsyncSession, user_id: uuid.UUID) -> Sequence
         .order_by(func.lower(Category.name), Category.id)
     )
     return result.all()
+
+
+async def find_category(session: AsyncSession, user_id: uuid.UUID, name: str) -> Category | None:
+    # Tenant scoping + case-insensitive match: "food" finds the user's "Food", never another user's.
+    return await session.scalar(
+        select(Category).where(
+            Category.user_id == user_id, func.lower(Category.name) == name.lower()
+        )
+    )
+
+
+async def create_category(session: AsyncSession, user_id: uuid.UUID, name: str) -> Category:
+    category = Category(user_id=user_id, name=name)
+    session.add(category)
+    # Unit of work: commit makes the row durable.
+    await session.commit()
+    return category
