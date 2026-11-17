@@ -194,3 +194,76 @@ test('no matches under a filter says so instead of "No expenses yet"', async () 
 
   expect(await screen.findByText('No expenses match these filters.')).toBeInTheDocument()
 })
+
+test('From and To work on their own, without a month', async () => {
+  const fetchMock = stubApi()
+  renderPage()
+  await screen.findByText('Shop 1')
+
+  fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-10-15' } })
+  await waitFor(() =>
+    expect(listRequests(fetchMock)).toContain('limit=21&offset=0&date_from=2026-10-15'),
+  )
+
+  fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-11-03' } })
+  await waitFor(() =>
+    expect(listRequests(fetchMock)).toContain(
+      'limit=21&offset=0&date_from=2026-10-15&date_to=2026-11-03',
+    ),
+  )
+
+  fireEvent.change(screen.getByLabelText('From'), { target: { value: '' } })
+  await waitFor(() =>
+    expect(listRequests(fetchMock).at(-1)).toBe('limit=21&offset=0&date_to=2026-11-03'),
+  )
+})
+
+test('picking a month fills From and To with its first and last day', async () => {
+  stubApi()
+  renderPage()
+  await screen.findByText('Shop 1')
+
+  fireEvent.change(screen.getByLabelText('Month'), { target: { value: '2026-02' } })
+
+  expect(screen.getByLabelText('From')).toHaveValue('2026-02-01')
+  expect(screen.getByLabelText('To')).toHaveValue('2026-02-28')
+})
+
+test('editing From after picking a month leaves the Month box blank', async () => {
+  stubApi()
+  renderPage()
+  await screen.findByText('Shop 1')
+  fireEvent.change(screen.getByLabelText('Month'), { target: { value: '2026-02' } })
+  expect(screen.getByLabelText('Month')).toHaveValue('2026-02')
+
+  fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-02-10' } })
+
+  expect(screen.getByLabelText('Month')).toHaveValue('')
+  expect(screen.getByLabelText('To')).toHaveValue('2026-02-28')
+})
+
+test('From cannot go past To, nor To before From', async () => {
+  stubApi()
+  renderPage()
+  await screen.findByText('Shop 1')
+
+  fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-10-05' } })
+  fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-10-20' } })
+
+  expect(screen.getByLabelText('From')).toHaveAttribute('max', '2026-10-20')
+  expect(screen.getByLabelText('To')).toHaveAttribute('min', '2026-10-05')
+})
+
+test('Clear filters empties the dates too', async () => {
+  stubApi()
+  const user = userEvent.setup()
+  renderPage()
+  await screen.findByText('Shop 1')
+  fireEvent.change(screen.getByLabelText('Month'), { target: { value: '2026-10' } })
+
+  await user.click(await screen.findByRole('button', { name: 'Clear filters' }))
+
+  expect(screen.getByLabelText('From')).toHaveValue('')
+  expect(screen.getByLabelText('To')).toHaveValue('')
+  expect(screen.getByLabelText('Month')).toHaveValue('')
+})

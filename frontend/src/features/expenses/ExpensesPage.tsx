@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { formatDate, formatMoney } from '@/lib/format'
+import { formatDate, formatMoney, monthRange } from '@/lib/format'
 import ExpenseForm from './ExpenseForm'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Input } from '@/components/ui/input'
@@ -37,11 +37,21 @@ export default function ExpensesPage() {
   // Zero-based; the screen shows page + 1.
   const [page, setPage] = useState(0)
   // Filters: empty string means "no filter". Changing one starts again from page 1.
-  const [month, setMonth] = useState('')
+  // The date range is the real filter. The Month box is a shortcut that fills both ends.
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
   const [category, setCategory] = useState<string[]>([])
-  const filtersActive = month !== '' || category.length > 0
+  // The Month box shows a month only while From and To are exactly that whole month.
+  const shownMonth =
+    from &&
+    from.slice(0, 7) === to.slice(0, 7) &&
+    monthRange(from.slice(0, 7)).from === from &&
+    monthRange(from.slice(0, 7)).to === to
+      ? from.slice(0, 7)
+      : ''
+  const filtersActive = from !== '' || to !== '' || category.length > 0
   const categories = useCategories()
-  const expenses = useExpenses({ pageSize, page, month, category })
+  const expenses = useExpenses({ pageSize, page, from, to, category })
   const rows = expenses.data?.rows ?? []
   const deleteExpense = useDeleteExpense()
   // Which expense a dialog is about; null means that dialog is closed.
@@ -81,9 +91,40 @@ export default function ExpensesPage() {
                 id="filter-month"
                 type="month"
                 className="w-44"
-                value={month}
+                value={shownMonth}
                 onChange={(event) => {
-                  setMonth(event.target.value)
+                  const month = event.target.value
+                  const range = month ? monthRange(month) : { from: '', to: '' }
+                  setFrom(range.from)
+                  setTo(range.to)
+                  setPage(0)
+                }}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="filter-from">From</Label>
+              <Input
+                id="filter-from"
+                type="date"
+                className="w-40"
+                value={from}
+                max={to || undefined}
+                onChange={(event) => {
+                  setFrom(event.target.value)
+                  setPage(0)
+                }}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="filter-to">To</Label>
+              <Input
+                id="filter-to"
+                type="date"
+                className="w-40"
+                value={to}
+                min={from || undefined}
+                onChange={(event) => {
+                  setTo(event.target.value)
                   setPage(0)
                 }}
               />
@@ -108,7 +149,8 @@ export default function ExpensesPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setMonth('')
+                  setFrom('')
+                  setTo('')
                   setCategory([])
                   setPage(0)
                 }}
