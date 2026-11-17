@@ -4,24 +4,52 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-import { useCategories, useCreateExpense } from './queries'
+import { useCategories, useCreateExpense, useUpdateExpense, type Expense } from './queries'
 
 /** Today as YYYY-MM-DD in the user's own time zone (en-CA formats dates that way). */
 function today(): string {
   return new Date().toLocaleDateString('en-CA')
 }
 
-export default function AddExpenseForm() {
+type Props = {
+  /** Present: edit this expense. Absent: add a new one. */
+  expense?: Expense
+  /** Called after a successful edit, and when Cancel is clicked. */
+  onDone?: () => void
+}
+
+export default function ExpenseForm({ expense, onDone }: Props) {
   const categories = useCategories()
   const createExpense = useCreateExpense()
-  const [amount, setAmount] = useState('')
-  const [spentOn, setSpentOn] = useState(today)
-  const [category, setCategory] = useState('')
-  const [merchant, setMerchant] = useState('')
-  const [note, setNote] = useState('')
+  const updateExpense = useUpdateExpense()
+  const mutation = expense ? updateExpense : createExpense
+  // Initial state comes from the expense being edited; the parent gives the form a `key` per
+  // expense, so switching to another one remounts it with fresh values.
+  const [amount, setAmount] = useState(expense?.amount ?? '')
+  const [spentOn, setSpentOn] = useState(expense?.spent_on ?? today())
+  const [category, setCategory] = useState(expense?.category ?? '')
+  const [merchant, setMerchant] = useState(expense?.merchant ?? '')
+  const [note, setNote] = useState(expense?.note ?? '')
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
+    if (expense) {
+      updateExpense.mutate(
+        {
+          id: expense.id,
+          // PATCH semantics: null clears a field, so emptied text boxes are sent as null.
+          changes: {
+            amount,
+            spent_on: spentOn,
+            category: category || null,
+            merchant: merchant || null,
+            note: note || null,
+          },
+        },
+        { onSuccess: () => onDone?.() },
+      )
+      return
+    }
     createExpense.mutate(
       {
         amount,
@@ -42,10 +70,12 @@ export default function AddExpenseForm() {
     )
   }
 
+  const label = expense ? 'Save changes' : 'Add expense'
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Add expense</CardTitle>
+        <CardTitle>{expense ? 'Edit expense' : 'Add expense'}</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
@@ -101,15 +131,20 @@ export default function AddExpenseForm() {
             <Label htmlFor="note">Note</Label>
             <Input id="note" value={note} onChange={(event) => setNote(event.target.value)} />
           </div>
-          {createExpense.isError && (
+          {mutation.isError && (
             <p role="alert" className="text-sm text-destructive sm:col-span-2">
-              {createExpense.error.message}
+              {mutation.error.message}
             </p>
           )}
-          <div className="sm:col-span-2">
-            <Button type="submit" disabled={createExpense.isPending}>
-              {createExpense.isPending ? 'Adding…' : 'Add expense'}
+          <div className="flex gap-2 sm:col-span-2">
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending ? 'Saving…' : label}
             </Button>
+            {expense && (
+              <Button type="button" variant="outline" onClick={() => onDone?.()}>
+                Cancel
+              </Button>
+            )}
           </div>
         </form>
       </CardContent>
