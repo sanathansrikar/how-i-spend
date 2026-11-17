@@ -9,6 +9,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { MultiSelect } from '@/components/MultiSelect'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -37,8 +38,8 @@ export default function ExpensesPage() {
   const [page, setPage] = useState(0)
   // Filters: empty string means "no filter". Changing one starts again from page 1.
   const [month, setMonth] = useState('')
-  const [category, setCategory] = useState('')
-  const filtersActive = month !== '' || category !== ''
+  const [category, setCategory] = useState<string[]>([])
+  const filtersActive = month !== '' || category.length > 0
   const categories = useCategories()
   const expenses = useExpenses({ pageSize, page, month, category })
   const rows = expenses.data?.rows ?? []
@@ -89,21 +90,18 @@ export default function ExpensesPage() {
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="filter-category">Category</Label>
-              <NativeSelect
+              <MultiSelect
                 id="filter-category"
+                placeholder="All categories"
+                // The API accepts at most 20 names in one request.
+                max={20}
+                options={categories.data ?? []}
                 value={category}
-                onChange={(event) => {
-                  setCategory(event.target.value)
+                onChange={(names) => {
+                  setCategory(names)
                   setPage(0)
                 }}
-              >
-                <NativeSelectOption value="">All categories</NativeSelectOption>
-                {categories.data?.map((name) => (
-                  <NativeSelectOption key={name} value={name}>
-                    {name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
+              />
             </div>
             {filtersActive && (
               <Button
@@ -111,7 +109,7 @@ export default function ExpensesPage() {
                 size="sm"
                 onClick={() => {
                   setMonth('')
-                  setCategory('')
+                  setCategory([])
                   setPage(0)
                 }}
               >

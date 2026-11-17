@@ -46,8 +46,8 @@ export type ExpenseListParams = {
   page: number
   /** YYYY-MM; empty or absent means all time. */
   month?: string
-  /** A category name; empty or absent means all categories. */
-  category?: string
+  /** Category names; an expense matches if it is in any of them. Empty or absent means all. */
+  category?: string[]
 }
 
 function listQuery({ pageSize, page, month, category }: ExpenseListParams): string {
@@ -61,7 +61,8 @@ function listQuery({ pageSize, page, month, category }: ExpenseListParams): stri
     query.set('date_from', from)
     query.set('date_to', to)
   }
-  if (category) query.set('category', category)
+  // One `category=` per name: the API reads repeated parameters as "any of these".
+  for (const name of category ?? []) query.append('category', name)
   return query.toString()
 }
 
