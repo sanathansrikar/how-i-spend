@@ -3,7 +3,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
-import { useCategories, useCreateExpense, useUpdateExpense, type Expense } from './queries'
+import {
+  useCategories,
+  useCreateCategory,
+  useCreateExpense,
+  useUpdateExpense,
+  type Expense,
+} from './queries'
+
+/** Select value for "+ New category…". Real categories are never offered under this value. */
+const NEW_CATEGORY = '__new_category__'
 
 /** Today as YYYY-MM-DD in the user's own time zone (en-CA formats dates that way). */
 function today(): string {
@@ -21,7 +30,11 @@ export default function ExpenseForm({ expense, onDone }: Props) {
   const categories = useCategories()
   const createExpense = useCreateExpense()
   const updateExpense = useUpdateExpense()
+  const createCategory = useCreateCategory()
   const mutation = expense ? updateExpense : createExpense
+  // Show whichever step failed: creating the category, or saving the expense.
+  const error = createCategory.error ?? mutation.error
+  const pending = createCategory.isPending || mutation.isPending
   // Unique ids: the add form and the edit dialog can be on screen together, and each label must
   // point at its own input.
   const id = useId()
@@ -32,9 +45,24 @@ export default function ExpenseForm({ expense, onDone }: Props) {
   const [category, setCategory] = useState(expense?.category ?? '')
   const [merchant, setMerchant] = useState(expense?.merchant ?? '')
   const [note, setNote] = useState(expense?.note ?? '')
+  const [newCategory, setNewCategory] = useState('')
+  const addingCategory = category === NEW_CATEGORY
 
-  function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent) {
     event.preventDefault()
+    let categoryName = category
+    if (addingCategory) {
+      try {
+        // Two steps: the category must exist before an expense can point at it (by name).
+        categoryName = (await createCategory.mutateAsync(newCategory)).name
+      } catch {
+        return // the error is shown below; nothing else was sent
+      }
+      // Switch the select to the new category now: if saving the expense fails, a retry must
+      // not try to create the same category again.
+      setCategory(categoryName)
+      setNewCategory('')
+    }
     if (expense) {
       updateExpense.mutate(
         {
@@ -43,7 +71,7 @@ export default function ExpenseForm({ expense, onDone }: Props) {
           changes: {
             amount,
             spent_on: spentOn,
-            category: category || null,
+            category: categoryName || null,
             merchant: merchant || null,
             note: note || null,
           },
@@ -57,7 +85,7 @@ export default function ExpenseForm({ expense, onDone }: Props) {
         amount,
         spent_on: spentOn,
         // Empty select means uncategorised; empty text fields are simply left out.
-        category: category || null,
+        category: categoryName || null,
         ...(merchant && { merchant }),
         ...(note && { note }),
       },
@@ -105,7 +133,10 @@ export default function ExpenseForm({ expense, onDone }: Props) {
           id={`${id}-category`}
           className="w-full"
           value={category}
-          onChange={(event) => setCategory(event.target.value)}
+          onChange={(event) => {
+            setCategory(event.target.value)
+            createCategory.reset() // forget an old "already exists" error
+          }}
         >
           <NativeSelectOption value="">Uncategorised</NativeSelectOption>
           {categories.data?.map((name) => (
@@ -113,8 +144,22 @@ export default function ExpenseForm({ expense, onDone }: Props) {
               {name}
             </NativeSelectOption>
           ))}
+          <NativeSelectOption value={NEW_CATEGORY}>+ New category…</NativeSelectOption>
         </NativeSelect>
       </div>
+      {addingCategory && (
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${id}-new-category`}>New category name</Label>
+          <Input
+            id={`${id}-new-category`}
+            required
+            maxLength={50}
+            autoFocus
+            value={newCategory}
+            onChange={(event) => setNewCategory(event.target.value)}
+          />
+        </div>
+      )}
       <div className="grid gap-1.5">
         <Label htmlFor={`${id}-merchant`}>Merchant</Label>
         <Input
@@ -128,14 +173,14 @@ export default function ExpenseForm({ expense, onDone }: Props) {
         <Label htmlFor={`${id}-note`}>Note</Label>
         <Input id={`${id}-note`} value={note} onChange={(event) => setNote(event.target.value)} />
       </div>
-      {mutation.isError && (
+      {error && (
         <p role="alert" className="text-sm text-destructive sm:col-span-2">
-          {mutation.error.message}
+          {error.message}
         </p>
       )}
       <div className="flex gap-2 sm:col-span-2">
-        <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? 'Saving…' : label}
+        <Button type="submit" disabled={pending}>
+          {pending ? 'Saving…' : label}
         </Button>
         {expense && (
           <Button type="button" variant="outline" onClick={() => onDone?.()}>
