@@ -45,3 +45,29 @@ export function useCreateExpense() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['expenses'] }),
   })
 }
+
+/** Mirrors the backend's ExpenseUpdate: send null to clear category, merchant or note. */
+export type ExpenseChanges = {
+  amount?: string
+  spent_on?: string
+  category?: string | null
+  merchant?: string | null
+  note?: string | null
+}
+
+export function useUpdateExpense() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, changes }: { id: string; changes: ExpenseChanges }) =>
+      api<Expense>(`/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(changes) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+  })
+}
+
+export function useDeleteExpense() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api<void>(`/expenses/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['expenses'] }),
+  })
+}
