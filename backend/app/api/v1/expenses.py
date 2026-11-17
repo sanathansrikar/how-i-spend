@@ -125,3 +125,15 @@ async def update_expense(
     expense = await expense_service.update_expense(session, expense, fields)
     return ExpenseRead.model_validate(expense)
 
+
+@router.delete("/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_expense(
+    expense_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> None:
+    """Delete one of your expenses; 404 if it does not exist or is not yours."""
+    expense = await expense_service.get_expense(session, user.id, expense_id)
+    if expense is None:
+        raise HTTPException(status_code=404, detail="Expense not found.")
+    await expense_service.delete_expense(session, expense)

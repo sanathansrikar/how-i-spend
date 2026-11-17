@@ -98,3 +98,7 @@ async def update_expense(
     await session.commit()
     return expense
 
+
+async def delete_expense(session: AsyncSession, expense: Expense) -> None:
+    await session.delete(expense)
+    await session.commit()
