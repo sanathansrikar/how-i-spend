@@ -2,14 +2,14 @@ import uuid
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import StringConstraints
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.db.session import get_session
 from app.models import User
-from app.schemas.expense import ExpenseRead
+from app.schemas.expense import ExpenseCreate, ExpenseRead
 from app.services import categories as category_service
 from app.services import expenses as expense_service
 
@@ -55,6 +55,34 @@ async def list_expenses(
         offset=offset,
     )
     return [ExpenseRead.model_validate(row) for row in rows]
+
+
+@router.post("", response_model=ExpenseRead, status_code=status.HTTP_201_CREATED)
+async def create_expense(
+    payload: ExpenseCreate,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: Annotated[User, Depends(get_current_user)],
+) -> ExpenseRead:
+    """Create an expense for the current user.
+
+    `category` is a name; one that is not yours returns 422. `currency` defaults to yours.
+    """
+    category = None
+    if payload.category is not None:
+        category = await category_service.get_by_name(session, user.id, payload.category)
+        if category is None:
+            raise HTTPException(status_code=422, detail=f"Unknown categories: {payload.category}.")
+    expense = await expense_service.create_expense(
+        session,
+        user,
+        amount=payload.amount,
+        spent_on=payload.spent_on,
+        category=category,
+        currency=payload.currency,
+        merchant=payload.merchant,
+        note=payload.note,
+    )
+    return ExpenseRead.model_validate(expense)
 
 
 @router.get("/{expense_id}", response_model=ExpenseRead)

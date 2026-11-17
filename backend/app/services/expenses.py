@@ -1,12 +1,44 @@
 import uuid
 from collections.abc import Sequence
 from datetime import date
+from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Category, Expense
+from app.models import Category, Expense, User
+
+
+async def create_expense(
+    session: AsyncSession,
+    user: User,
+    *,
+    amount: Decimal,
+    spent_on: date,
+    category: Category | None,
+    currency: str | None,
+    merchant: str | None,
+    note: str | None,
+) -> Expense:
+    expense = Expense(
+        # user_id comes from the authenticated user, never from the request body.
+        user_id=user.id,
+        category_id=category.id if category else None,
+        amount=amount,
+        # Default: fall back to the user's own currency when the client does not say.
+        currency=currency or user.currency,
+        spent_on=spent_on,
+        merchant=merchant,
+        note=note,
+        # Set the relationship up front: the response needs the category name, and lazy loading
+        # it later would fail in async code.
+        category=category,
+    )
+    session.add(expense)
+    # Unit of work: one commit makes the whole row durable (or none of it).
+    await session.commit()
+    return expense
 
 
 async def get_expense(
